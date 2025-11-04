@@ -47,7 +47,7 @@ clean:
 	rm -f $(OBJ) $(ELF) $(HEX) $(LST) *.out dump.vcd dump.log
 
 simul: *.sv
-	$(CC) -D$(VERSION) $(FLAGS) *.sv 
+	$(CC) -DSIM $(FLAGS) *.sv 
 # 	vvp a.out | grep -v xxxx | sort > dump.log
 # 	vvp a.out > dump.log
 	vvp a.out 

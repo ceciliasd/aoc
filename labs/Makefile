@@ -9,7 +9,10 @@
 # LE-4
 # QUARTUS_PATH = /opt/intelFPGA/23.1std/quartus/bin/ 
 # vlab
-QUARTUS_PATH = /var/local/intelFPGA_lite/23.1std/quartus/bin/
+# QUARTUS_PATH = /var/local/intelFPGA_lite/23.1std/quartus/bin/
+# menotti
+QUARTUS_PATH = /opt/intelFPGA_lite/22.1std/quartus/bin/
+# inspirotti 
 
 PROJECT = project
 TOP_LEVEL_ENTITY = top
@@ -21,10 +24,10 @@ ASSIGNMENT_FILES = $(PROJECT).qpf $(PROJECT).qsf
 # Part, Family, Boardfile 
 # BOARD = DE0_CV
 # BOARD = DE1
-# BOARD = DE2_115
+BOARD = DE2_115
 # BOARD = DE2i_150
 # BOARD = DE10_lite
-BOARD = DE10_standard
+# BOARD = DE10_standard
 
 ifeq ($(BOARD),DE0_CV)
 	FAMILY = "Cyclone V"
@@ -103,7 +106,7 @@ ifeq ($(shell uname -m),x86_64)
 endif
 
 MAP_ARGS = $(QUARTUS_ARGS) --read_settings_files=on $(addprefix --source=,$(SRCS))
-FIT_ARGS = $(QUARTUS_ARGS) --part=$(PART) --read_settings_files=on
+FIT_ARGS = $(QUARTUS_ARGS) --part=$(PART) --read_settings_files=on --effort=fast --one_fit_attempt=on
 ASM_ARGS = $(QUARTUS_ARGS)
 STA_ARGS = $(QUARTUS_ARGS)
 SH_ARGS  = $(QUARTUS_ARGS)

@@ -1,15 +1,33 @@
-module top(
-  input CLOCK_50, // 50 MHz clock
+module top #(parameter VGA_BITS = 8) (
+  input CLOCK_50, // 50MHz
+  input [9:0] SW,
   output reg [9:0] LEDR,
-  output [6:0] HEX5, HEX4, HEX3, HEX2, HEX1, HEX0);
+  output [6:0] HEX5, HEX4, HEX3, HEX2, HEX1, HEX0,
+  output [VGA_BITS-1:0] VGA_R, VGA_G, VGA_B,
+  output VGA_HS, VGA_VS,
+  output reg VGA_CLK = 0,
+  output VGA_BLANK_N, VGA_SYNC_N);
+
+  wire VGA_DA; // In display area
   
   wire memwrite, clk, reset;
   wire [31:0] pc, instr;
   wire [31:0] writedata, addr, readdata;
-  integer counter = 0;  
+  wire [31:0] vaddr, vdata;
+  wire [ 7:0] vbyte = vaddr[1] ? (vaddr[0] ? vdata[31:24] : vdata[23:16])
+                               : (vaddr[0] ? vdata[15: 8] : vdata[ 7: 0]);
+  integer counter = 0; 
+  
+  always @(posedge CLOCK_50)
+    VGA_CLK <= ~VGA_CLK;
+
   always @(posedge CLOCK_50) 
       counter <= counter + 1;
-  assign clk = counter[0]; // 50MHz / 2^22 = 11.9 Hz
+  `ifdef SIM
+  assign clk = counter[0];  
+  `else     
+  assign clk = CLOCK_50;
+  `endif
 
   // power-on reset
   power_on_reset por(clk, reset);
@@ -18,7 +36,10 @@ module top(
   riscvmulti cpu(clk, reset, addr, writedata, memwrite, readdata);
 
   // memory 
-  mem ram(clk, memwrite, addr, writedata, readdata);
+  mem ram(clk, memwrite, addr, writedata, readdata, 'h200 + vaddr, vdata);
+
+  // VGA controller
+  vga gpu(VGA_CLK, reset, VGA_HS, VGA_VS, VGA_DA, vaddr);
 
   // memory-mapped i/o
   wire isIO  = addr[8]; // 0x0000_0100
@@ -38,5 +59,11 @@ module top(
         LEDR <= writedata;
       if (addr[IO_HEX_bit])
         hex_digits <= writedata;
-  end
+    end
+  wire [VGA_BITS-3:0] fill = {VGA_BITS-2{1'b0}};
+  assign VGA_R = VGA_DA ? {vbyte[5:4], fill} : 0;
+  assign VGA_G = VGA_DA ? {vbyte[3:2], fill} : 0;
+  assign VGA_B = VGA_DA ? {vbyte[1:0], fill} : 0;
+  assign VGA_BLANK_N = 1'b1;
+  assign VGA_SYNC_N  = 1'b0;
 endmodule
