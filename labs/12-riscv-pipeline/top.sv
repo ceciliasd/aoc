@@ -1,65 +1,114 @@
 module top(
-    input CLOCK_50, // 50 MHz clock
-    input [9:0] SW,
-    input [3:0] KEY, // KEY[0] is reset
+    input  CLOCK_50,           // 50 MHz
+    input  [9:0] SW,
+    input  [3:0] KEY,           // KEY[3] = reset
     output reg [9:0] LEDR,
-    output [6:0] HEX5, HEX4, HEX3, HEX2, HEX1, HEX0);
+    output [6:0] HEX5, HEX4, HEX3, HEX2, HEX1, HEX0
+);
 
-    wire memwrite, clk, reset;
-    wire [31:0] pc, instr;
-    wire [31:0] writedata, addr, readdata;
-    integer counter;
+    // ------------------------------------------------------------
+    // Clock e Reset
+    // ------------------------------------------------------------
+    reg [31:0] counter = 0;
+
     always @(posedge CLOCK_50)
         counter <= counter + 1;
-    assign clk = counter[21]; // 50MHz / 2^22 = 11.9 Hz
-    assign reset = ~KEY[3]; // active low
 
-    // Mascara de Bits, necessaria para lb e sb
-    wire  [3:0] writemask;
+    wire clk   = counter[21];   // clock lento (~12 Hz)
+    wire reset = ~KEY[3];        // reset ativo em nível baixo
 
-    reg [31:0] data;
+    // ------------------------------------------------------------
+    // Sinais do processador
+    // ------------------------------------------------------------
+    wire [31:0] pc, instr;
+    wire [31:0] addr, writedata;
+    wire [31:0] readdata;
+    wire        memwrite;
+    wire [3:0]  writemask;
 
-    // GAMBIARRA de byte-enable
-    always @(*) begin
-        if (writemask[0]) data[ 7:0 ]  <= writedata[ 7:0 ];
-        if (writemask[1]) data[15:8 ]  <= writedata[15:8 ];
-        if (writemask[2]) data[23:16] <= writedata[23:16];
-        if (writemask[3]) data[31:24] <= writedata[31:24];
+    // ------------------------------------------------------------
+    // CPU Pipeline
+    // ------------------------------------------------------------
+    riscvpipeline cpu (
+        .clk(clk),
+        .reset(reset),
+        .pc(pc),
+        .instr(instr),
+        .addr(addr),
+        .writedata(writedata),
+        .memwrite(memwrite),
+        .readdata(readdata),
+        .writemask(writemask)
+    );
+
+    // ------------------------------------------------------------
+    // Memória de Instruções (ROM)
+    // ------------------------------------------------------------
+    mem #("text.hex") instr_mem (
+        .clk(clk),
+        .a(pc),
+        .rd(instr)
+    );
+
+    // ------------------------------------------------------------
+    // Memória de Dados (RAM)
+    // ------------------------------------------------------------
+    wire [31:0] MEM_readdata;
+
+    // MMIO: bit 8 define se é I/O (0x00000100)
+    wire isIO  = addr[8];
+    wire isRAM = ~isIO;
+
+    mem #("data.hex") data_mem (
+        .clk(clk),
+        .we(memwrite & isRAM),
+        .a(addr),
+        .wd(writedata),
+        .rd(MEM_readdata),
+        .mem_wmask(writemask)
+    );
+
+    // ------------------------------------------------------------
+    // Memory-Mapped I/O
+    // ------------------------------------------------------------
+    localparam IO_LEDS_bit = 2;  // 0x00000104
+    localparam IO_HEX_bit  = 3;  // 0x00000108
+    localparam IO_KEY_bit  = 4;  // 0x00000110
+    localparam IO_SW_bit   = 5;  // 0x00000120
+
+    reg  [23:0] hex_digits;
+    wire [31:0] IO_readdata;
+
+    // Escrita em dispositivos
+    always @(posedge clk) begin
+        if (memwrite & isIO) begin
+            if (addr[IO_LEDS_bit])
+                LEDR <= writedata[9:0];
+
+            if (addr[IO_HEX_bit])
+                hex_digits <= writedata[23:0];
+        end
     end
 
-    // microprocessor
-    riscvpipeline cpu(clk, reset, pc, instr, addr, writedata, memwrite, readdata, writemask);
+    // Leitura de dispositivos
+    assign IO_readdata =
+        addr[IO_KEY_bit] ? {28'b0, KEY} :
+        addr[IO_SW_bit]  ? {22'b0, SW}  :
+                           32'b0;
 
-    // DEFINICAO DAS MEMORIAS. NO PIPE TEMOS DUAS SEPARADAS
-    // instructions memory
-    mem #("text.hex") instr_mem(.clk(clk), .a(pc), .rd(instr));
-    // data memory
-    mem #("data.hex") data_mem(clk, memwrite, addr, writedata, readdata, data);
+    // ------------------------------------------------------------
+    // MUX final de leitura (RAM ou I/O)
+    // ------------------------------------------------------------
+    assign readdata = isIO ? IO_readdata : MEM_readdata;
 
-
-    // memory-mapped i/o
-    wire isIO  = addr[8]; // 0x0000_0100
-    wire isRAM = !isIO;
-    localparam IO_LEDS_bit = 2; // 0x0000_0104
-    localparam IO_HEX_bit  = 3; // 0x0000_0108
-    localparam IO_KEY_bit  = 4; // 0x0000_0110
-    localparam IO_SW_bit   = 5; // 0x0000_0120
-    reg [23:0] hex_digits; // memory-mapped I/O register for HEX
+    // ------------------------------------------------------------
+    // Displays de 7 segmentos
+    // ------------------------------------------------------------
     dec7seg hex0(hex_digits[ 3: 0], HEX0);
     dec7seg hex1(hex_digits[ 7: 4], HEX1);
     dec7seg hex2(hex_digits[11: 8], HEX2);
     dec7seg hex3(hex_digits[15:12], HEX3);
     dec7seg hex4(hex_digits[19:16], HEX4);
     dec7seg hex5(hex_digits[23:20], HEX5);
-    always @(posedge clk)
-        if (memwrite & isIO) begin // I/O write
-        if (addr[IO_LEDS_bit])
-            LEDR <= writedata;
-        if (addr[IO_HEX_bit])
-            hex_digits <= writedata;
-    end
-    assign IO_readdata = addr[IO_KEY_bit] ? {32'b0, KEY} :
-                        addr[ IO_SW_bit] ? {32'b0,  SW} :
-                                            32'b0       ;
-    //assign readdata = isIO ? IO_readdata : MEM_readdata;
+
 endmodule
