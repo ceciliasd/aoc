@@ -18,3 +18,15 @@ loop:
     addi s0, s0, 4         # avança vetor
 
     j loop
+
+.data
+.align 2
+
+fib_data:
+    .word 0
+    .word 1
+    .space 64              # espaço para a sequência
+
+fib_out:
+    .word 0
+
