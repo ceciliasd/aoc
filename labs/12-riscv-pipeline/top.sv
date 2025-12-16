@@ -66,7 +66,7 @@ mem #("data.hex") data_mem (
 // riscvmulti cpu(clk, reset, addr, writedata, memwrite, readdata);
 
 // memory mem for multi
-// mem ram(clk, memwrite, addr, writedata, readdata, 'h200 + vaddr, vdata);
+// memmulti ram(clk, memwrite, addr, writedata, readdata, 'h200 + vaddr, vdata);
 
 
     // Memory-Mapped I/O
