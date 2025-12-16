@@ -2,8 +2,7 @@ module top(
     input  CLOCK_50,           // 50 MHz
     input  [9:0] SW,
     input  [3:0] KEY,           // KEY[3] = reset
-    output reg [9:0] LEDR,
-    output [6:0] HEX5, HEX4, HEX3, HEX2, HEX1, HEX0
+    output reg [9:0] LEDR
 );
 
     // Clock e Reset
@@ -75,7 +74,6 @@ mem #("data.hex") data_mem (
     localparam IO_KEY_bit  = 4;  // 0x00000110
     localparam IO_SW_bit   = 5;  // 0x00000120
 
-    reg  [23:0] hex_digits;
     wire [31:0] IO_readdata;
 
     // Escrita em dispositivos
@@ -84,8 +82,6 @@ mem #("data.hex") data_mem (
             if (addr[IO_LEDS_bit])
                 LEDR <= writedata[9:0];
 
-            if (addr[IO_HEX_bit])
-                hex_digits <= writedata[23:0];
         end
     end
 
@@ -97,13 +93,5 @@ mem #("data.hex") data_mem (
 
     // MUX final de leitura (RAM ou I/O)
     assign readdata = isIO ? IO_readdata : MEM_readdata;
-
-    // Displays de 7 segmentos
-    dec7seg hex0(hex_digits[ 3: 0], HEX0);
-    dec7seg hex1(hex_digits[ 7: 4], HEX1);
-    dec7seg hex2(hex_digits[11: 8], HEX2);
-    dec7seg hex3(hex_digits[15:12], HEX3);
-    dec7seg hex4(hex_digits[19:16], HEX4);
-    dec7seg hex5(hex_digits[23:20], HEX5);
 
 endmodule
